@@ -20,3 +20,18 @@ func HashTransaction(tx *proto.Transaction) []byte {
 func SignTransaction(pk *crypto.PrivateKey, tx *proto.Transaction) *crypto.Signature {
 	return pk.Sign(HashTransaction(tx))
 }
+
+func VerifyTransaction(tx *proto.Transaction) bool {
+	for _, input := range tx.Inputs {
+		var (
+			sig    = crypto.SignatureFromBytes(input.Signature)
+			pubKey = crypto.PublicKeyFromBytes(input.PublicKey)
+		)
+		input.Signature = nil
+		if !sig.Verify(pubKey, HashTransaction(tx)) {
+			return false
+		}
+
+	}
+	return true
+}
