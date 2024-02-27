@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"net"
 	"time"
 
 	"github.com/sanLimbu/blockchain/node"
@@ -14,14 +12,6 @@ import (
 
 func main() {
 	node := node.NewNode()
-	opts := []grpc.ServerOption{}
-	grpcServer := grpc.NewServer(opts...)
-	ln, err := net.Listen("tcp", ":3000")
-	if err != nil {
-		log.Fatal(err)
-	}
-	proto.RegisterNodeServer(grpcServer, node)
-	fmt.Println("node running on port:", "3000")
 
 	go func() {
 		for {
@@ -29,7 +19,7 @@ func main() {
 			makeTransaction()
 		}
 	}()
-	grpcServer.Serve(ln)
+	log.Fatal(node.Start(":3000"))
 }
 
 func makeTransaction() {
@@ -38,7 +28,13 @@ func makeTransaction() {
 		log.Fatal(err)
 	}
 	c := proto.NewNodeClient(client)
-	_, err = c.HandleTransaction(context.TODO(), &proto.Transaction{})
+
+	version := &proto.Version{
+		Version: "blockchain-1.0",
+		Height:  100,
+	}
+
+	_, err = c.Handshake(context.TODO(), version)
 	if err != nil {
 		log.Fatal(err)
 	}
