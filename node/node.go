@@ -14,9 +14,10 @@ import (
 
 type Node struct {
 	proto.UnimplementedNodeServer
-	version  string
-	peerLock sync.RWMutex
-	peers    map[proto.NodeClient]*proto.Version
+	version    string
+	listenAddr string
+	peerLock   sync.RWMutex
+	peers      map[proto.NodeClient]*proto.Version
 }
 
 func NewNode() *Node {
@@ -30,7 +31,7 @@ func (n *Node) addPeer(c proto.NodeClient, v *proto.Version) {
 	n.peerLock.Lock()
 	defer n.peerLock.Unlock()
 
-	fmt.Printf("New peer connected (%s) - height (%v)\n", v.ListenAddr, v.Height)
+	fmt.Printf("[%s] New peer connected (%s) - height (%v)\n", n.listenAddr, v.ListenAddr, v.Height)
 
 	n.peers[c] = v
 }
@@ -41,7 +42,24 @@ func (n *Node) deletePeer(c proto.NodeClient) {
 	delete(n.peers, c)
 }
 
+func (n *Node) BootstrapNetwork(addrs []string) error {
+	for _, addr := range addrs {
+		c, err := makeNodeClient(addr)
+		if err != nil {
+			return err
+		}
+		v, err := c.Handshake(context.Background(), n.getVersion())
+		if err != nil {
+			fmt.Println("handshake error :", err)
+			continue
+		}
+		n.addPeer(c, v)
+	}
+	return nil
+}
+
 func (n *Node) Start(listenAddr string) error {
+	n.listenAddr = listenAddr
 	opts := []grpc.ServerOption{}
 	grpcServer := grpc.NewServer(opts...)
 	ln, err := net.Listen("tcp", listenAddr)
@@ -56,10 +74,6 @@ func (n *Node) Start(listenAddr string) error {
 }
 
 func (n *Node) Handshake(ctx context.Context, v *proto.Version) (*proto.Version, error) {
-	ourVersion := &proto.Version{
-		Version: n.version,
-		Height:  100,
-	}
 
 	c, err := makeNodeClient(v.ListenAddr)
 	if err != nil {
@@ -67,7 +81,7 @@ func (n *Node) Handshake(ctx context.Context, v *proto.Version) (*proto.Version,
 	}
 	n.addPeer(c, v)
 
-	return ourVersion, nil
+	return n.getVersion(), nil
 }
 
 func (n *Node) HandleTransaction(ctx context.Context, tx *proto.Transaction) (*proto.Ack, error) {
@@ -77,6 +91,14 @@ func (n *Node) HandleTransaction(ctx context.Context, tx *proto.Transaction) (*p
 
 	return &proto.Ack{}, nil
 
+}
+
+func (n *Node) getVersion() *proto.Version {
+	return &proto.Version{
+		Version:    "blockchain-1.0",
+		Height:     0,
+		ListenAddr: n.listenAddr,
+	}
 }
 
 func makeNodeClient(listenAddr string) (proto.NodeClient, error) {

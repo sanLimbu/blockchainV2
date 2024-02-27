@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/sanLimbu/blockchain/node"
 	"github.com/sanLimbu/blockchain/proto"
@@ -11,15 +10,21 @@ import (
 )
 
 func main() {
-	node := node.NewNode()
 
-	go func() {
-		for {
-			time.Sleep(2 * time.Second)
-			makeTransaction()
+	makeNode(":3000", []string{})
+	makeNode(":4000", []string{":3000"})
+	select {}
+}
+
+func makeNode(listenAddr string, bootstrapNodes []string) *node.Node {
+	n := node.NewNode()
+	go n.Start(listenAddr)
+	if len(bootstrapNodes) > 0 {
+		if err := n.BootstrapNetwork(bootstrapNodes); err != nil {
+			log.Fatal(err)
 		}
-	}()
-	log.Fatal(node.Start(":3000"))
+	}
+	return n
 }
 
 func makeTransaction() {
@@ -30,8 +35,9 @@ func makeTransaction() {
 	c := proto.NewNodeClient(client)
 
 	version := &proto.Version{
-		Version: "blockchain-1.0",
-		Height:  100,
+		Version:    "blockchain-1.0",
+		Height:     100,
+		ListenAddr: ":4000",
 	}
 
 	_, err = c.Handshake(context.TODO(), version)
