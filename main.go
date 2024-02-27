@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/sanLimbu/blockchain/node"
 	"github.com/sanLimbu/blockchain/proto"
@@ -12,7 +13,10 @@ import (
 func main() {
 
 	makeNode(":3000", []string{})
+	time.Sleep(time.Second)
 	makeNode(":4000", []string{":3000"})
+	time.Sleep(3 * time.Second)
+	makeNode(":5000", []string{":4000"})
 	select {}
 }
 

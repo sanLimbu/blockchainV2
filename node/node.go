@@ -31,9 +31,17 @@ func (n *Node) addPeer(c proto.NodeClient, v *proto.Version) {
 	n.peerLock.Lock()
 	defer n.peerLock.Unlock()
 
-	fmt.Printf("[%s] New peer connected (%s) - height (%v)\n", n.listenAddr, v.ListenAddr, v.Height)
+	//Handle the logic where we decide to accept or drop the incoming node connection
 
 	n.peers[c] = v
+
+	for _, addr := range v.PeerList {
+		if addr != n.listenAddr {
+			fmt.Printf("[%s] need to connect with %s\n", n.listenAddr, addr)
+		}
+	}
+	fmt.Printf("[%s] New peer connected (%s) - height (%v)\n", n.listenAddr, v.ListenAddr, v.Height)
+
 }
 
 func (n *Node) deletePeer(c proto.NodeClient) {
@@ -98,7 +106,19 @@ func (n *Node) getVersion() *proto.Version {
 		Version:    "blockchain-1.0",
 		Height:     0,
 		ListenAddr: n.listenAddr,
+		PeerList:   n.getPeerList(),
 	}
+}
+
+func (n *Node) getPeerList() []string {
+	n.peerLock.RLock()
+	defer n.peerLock.RUnlock()
+
+	peers := []string{}
+	for _, version := range n.peers {
+		peers = append(peers, version.ListenAddr)
+	}
+	return peers
 }
 
 func makeNodeClient(listenAddr string) (proto.NodeClient, error) {
